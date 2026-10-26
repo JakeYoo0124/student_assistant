@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Session, select
 from database import create_db, get_session
@@ -21,12 +22,14 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 화면 파일은 프로젝트 맨 위 폴더의 frontend/ 에 있다 (이 파일 기준 한 단계 위)
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.include_router(excuse_router)
 
 @app.get("/")
 def home():
-    return FileResponse("static/index.html")
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 @app.get("/courses")
 def list_courses():

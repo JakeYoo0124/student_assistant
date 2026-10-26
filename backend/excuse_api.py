@@ -18,7 +18,7 @@ from schedule import get_term, holidays_of, is_class_day, next_class_day
 
 router = APIRouter(prefix="/excuse", tags=["excuse"])
 
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")  # backend/uploads
 ALLOWED_EXT = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 HOURS_PER_DAY = 8  # 질병·휴가 한도 계산에 쓰는 하루 훈련시간 (수업 9:10~18:00, 점심 제외)

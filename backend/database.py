@@ -1,8 +1,11 @@
 import os
+from pathlib import Path
 from sqlmodel import SQLModel, create_engine
 from sqlmodel import Session
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database.db")
+# DB 파일은 어디서 실행하든 backend/database.db 를 쓴다
+DEFAULT_DB = Path(__file__).resolve().parent / "database.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB.as_posix()}")
 engine = create_engine(DATABASE_URL)
 
 def create_db():

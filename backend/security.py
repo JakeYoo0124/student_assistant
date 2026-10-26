@@ -1,7 +1,8 @@
 import os
 import jwt
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+# 개발용 기본값이다. 실제로 배포할 때는 반드시 환경변수 SECRET_KEY 로 긴 무작위 값을 넣어야 한다.
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me-dev-only-change-me")
 ALGORITHM = "HS256"
 
 from pwdlib import PasswordHash
