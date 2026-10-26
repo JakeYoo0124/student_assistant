@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Session, select
 from database import create_db, get_session
-from models import User, UserCreate, UserRead
+from models import User, UserCreate, UserRead, COURSES
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -22,8 +22,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 def home():
     return FileResponse("static/index.html")
 
+@app.get("/courses")
+def list_courses():
+    return COURSES
+
 @app.post("/signup", response_model=UserRead)
 def signup(data: UserCreate, session: Session = Depends(get_session)):
+    if data.course not in COURSES:
+        raise HTTPException(status_code=400, detail="과정을 선택해 주세요")
     exists = session.exec(select(User).where(User.email == data.email)).first()
     if exists:
         raise HTTPException(status_code=400, detail="이미 가입된 이메일입니다")
@@ -34,6 +40,7 @@ def signup(data: UserCreate, session: Session = Depends(get_session)):
         password_hash=hash_password(data.password),
         role="student",
         status="pending",
+        course=data.course,
     )
     session.add(user)
     session.commit()

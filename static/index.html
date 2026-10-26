@@ -29,6 +29,11 @@
 
       <form id="signup-form" hidden>
         <label>이름<input name="name" type="text" required></label>
+        <label>과정
+          <select name="course" required>
+            <option value="" disabled selected>과정을 선택하세요</option>
+          </select>
+        </label>
         <label>이메일<input name="email" type="email" required autocomplete="username"></label>
         <label>비밀번호<input name="password" type="password" required minlength="4" autocomplete="new-password"></label>
         <button class="primary" type="submit">가입하기</button>

@@ -47,6 +47,17 @@ async function login(email, password) {
   localStorage.setItem(TOKEN_KEY, data.access_token);
 }
 
+async function loadCourses() {
+  try {
+    const courses = await api("/courses");
+    const select = document.querySelector('#signup-form select[name="course"]');
+    courses.forEach((c) => select.add(new Option(c, c)));
+  } catch {
+    showMessage("과정 목록을 불러오지 못했습니다. 서버가 켜져 있는지 확인해 주세요.");
+  }
+}
+loadCourses();
+
 // ── 로그인 / 회원가입 폼 ───────────────────────────────────
 document.getElementById("login-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -76,6 +87,7 @@ document.getElementById("signup-form").onsubmit = async (e) => {
         name: f.get("name"),
         email: f.get("email"),
         password: f.get("password"),
+        course: f.get("course"),
       }),
     });
     e.target.reset();
@@ -182,7 +194,7 @@ async function loadSignups() {
     }
     box.innerHTML = list.map((u) => `
       <div class="row" data-id="${u.id}">
-        <div class="who"><strong>${escapeHtml(u.name)}</strong><span>${escapeHtml(u.email)}</span></div>
+        <div class="who"><strong>${escapeHtml(u.name)}</strong><span>${escapeHtml(u.course || "과정 미선택")} · ${escapeHtml(u.email)}</span></div>
         <div class="actions">
           <button class="approve" type="button">승인</button>
           <button class="reject" type="button">반려</button>
@@ -239,8 +251,9 @@ function bindManagerForm() {
 
 async function enterApp() {
   currentUser = await api("/me");
+  const role = ROLE_LABEL[currentUser.role] || currentUser.role;
   document.getElementById("user-info").textContent =
-    `${currentUser.name} (${ROLE_LABEL[currentUser.role] || currentUser.role})`;
+    `${currentUser.name} (${currentUser.course ? `${role} · ${currentUser.course}` : role})`;
   authView.hidden = true;
   appView.hidden = false;
   renderNav();
