@@ -78,8 +78,9 @@ document.getElementById("signup-form").onsubmit = async (e) => {
         password: f.get("password"),
       }),
     });
-    await login(f.get("email"), f.get("password"));
-    await enterApp();
+    e.target.reset();
+    setTab("login");
+    showMessage("가입 신청이 접수되었습니다. 담당자가 승인하면 로그인할 수 있습니다.", "ok");
   } catch (err) {
     showMessage(err.message);
   } finally {
@@ -88,7 +89,19 @@ document.getElementById("signup-form").onsubmit = async (e) => {
 };
 
 // ── 앱 화면 ────────────────────────────────────────────────
-const ROLE_LABEL = { student: "학생", manager: "매니저", admin: "관리자" };
+const ROLE_LABEL = { student: "학생", manager: "담당자" };
+
+// 역할별 메뉴. 화면에서만 숨기는 것이고, 실제 권한은 서버가 검사한다.
+const NAV = {
+  student: [
+    ["home", "홈"], ["request", "출결 신청"], ["status", "출결 현황"],
+    ["calendar", "수업 일정"], ["notice", "공지사항"], ["docs", "문서 보관함"], ["chat", "AI 도우미"],
+  ],
+  manager: [
+    ["home", "홈"], ["signups", "가입 승인"], ["approvals", "출결 승인"], ["status", "전체 출결 현황"],
+    ["calendar", "수업 일정 관리"], ["notice", "공지 작성"], ["managers", "담당자 관리"], ["chat", "AI 도우미"],
+  ],
+};
 
 const PAGES = {
   home: (user) => `
@@ -100,11 +113,32 @@ const PAGES = {
       <div class="tile"><div class="label">남은 휴가</div><div class="value soon">준비 중</div></div>
     </div>`,
   request: () => placeholder("출결 신청", "결석·조퇴·휴가를 신청하는 화면입니다."),
-  status: () => placeholder("출결 현황", "내 출결 기록과 승인 상태를 보는 화면입니다."),
-  calendar: () => placeholder("수업 일정", "반별 수업일과 휴강일을 보는 캘린더입니다."),
-  notice: () => placeholder("공지사항", "매니저가 올린 공지를 보는 화면입니다."),
+  status: (u) => u.role === "manager"
+    ? placeholder("전체 출결 현황", "모든 반 학생의 출결 기록과 위험군을 보는 화면입니다.")
+    : placeholder("출결 현황", "내 출결 기록과 승인 상태를 보는 화면입니다."),
+  calendar: (u) => u.role === "manager"
+    ? placeholder("수업 일정 관리", "반별 수업 기간과 휴강일을 입력하고 수정하는 화면입니다.")
+    : placeholder("수업 일정", "반별 수업일과 휴강일을 보는 캘린더입니다."),
+  notice: (u) => u.role === "manager"
+    ? placeholder("공지 작성", "학생들에게 보낼 공지를 작성하는 화면입니다.")
+    : placeholder("공지사항", "담당자가 올린 공지를 보는 화면입니다."),
   docs: () => placeholder("문서 보관함", "제출한 증빙서류를 모아 보는 화면입니다."),
   chat: () => placeholder("AI 도우미", "출결 규정을 물어보는 챗봇입니다."),
+  signups: () => `
+    <h2>가입 승인</h2>
+    <p class="desc">가입을 신청한 학생입니다. 승인해야 로그인할 수 있습니다.</p>
+    <div id="signup-list" class="list"><div class="placeholder">불러오는 중...</div></div>`,
+  approvals: () => placeholder("출결 승인", "학생들의 결석·조퇴·휴가 신청을 확인하고 승인하는 화면입니다."),
+  managers: () => `
+    <h2>담당자 관리</h2>
+    <p class="desc">새 담당자 계정을 추가합니다. 담당자는 모든 반의 신청을 승인할 수 있습니다.</p>
+    <form id="manager-form" class="panel">
+      <label>이름<input name="name" type="text" required></label>
+      <label>이메일<input name="email" type="email" required></label>
+      <label>임시 비밀번호 (8자 이상)<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+      <button class="primary" type="submit">담당자 추가</button>
+      <p id="manager-msg" class="message" role="alert"></p>
+    </form>`,
 };
 
 function placeholder(title, desc) {
@@ -119,13 +153,88 @@ function escapeHtml(text) {
 
 let currentUser = null;
 
+function renderNav() {
+  const items = NAV[currentUser.role] || NAV.student;
+  document.getElementById("nav").innerHTML = items
+    .map(([key, label]) => `<a href="#${key}" class="nav-item" data-page="${key}">${label}</a>`)
+    .join("");
+}
+
 function renderPage() {
+  const allowed = (NAV[currentUser.role] || NAV.student).map(([key]) => key);
   const name = location.hash.slice(1) || "home";
-  const key = PAGES[name] ? name : "home";
+  const key = allowed.includes(name) && PAGES[name] ? name : "home";
   pageEl.innerHTML = PAGES[key](currentUser);
   document.querySelectorAll(".nav-item").forEach((a) => {
     a.classList.toggle("active", a.dataset.page === key);
   });
+  if (key === "managers") bindManagerForm();
+  if (key === "signups") loadSignups();
+}
+
+async function loadSignups() {
+  const box = document.getElementById("signup-list");
+  try {
+    const list = await api("/signups");
+    if (!list.length) {
+      box.innerHTML = '<div class="placeholder">승인 대기 중인 가입 신청이 없습니다.</div>';
+      return;
+    }
+    box.innerHTML = list.map((u) => `
+      <div class="row" data-id="${u.id}">
+        <div class="who"><strong>${escapeHtml(u.name)}</strong><span>${escapeHtml(u.email)}</span></div>
+        <div class="actions">
+          <button class="approve" type="button">승인</button>
+          <button class="reject" type="button">반려</button>
+        </div>
+      </div>`).join("");
+    box.querySelectorAll(".row").forEach((row) => {
+      const id = row.dataset.id;
+      const name = row.querySelector("strong").textContent;
+      row.querySelector(".approve").onclick = () => decideSignup(id, "approve");
+      row.querySelector(".reject").onclick = () => {
+        if (confirm(`${name} 님의 가입을 반려할까요? 가입 정보가 삭제됩니다.`)) decideSignup(id, "reject");
+      };
+    });
+  } catch (err) {
+    box.innerHTML = `<div class="placeholder">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function decideSignup(id, action) {
+  try {
+    if (action === "approve") await api(`/signups/${id}/approve`, { method: "POST" });
+    else await api(`/signups/${id}`, { method: "DELETE" });
+  } catch (err) {
+    alert(err.message);
+  }
+  loadSignups();
+}
+
+function bindManagerForm() {
+  const form = document.getElementById("manager-form");
+  const msg = document.getElementById("manager-msg");
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(form);
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    try {
+      const m = await api("/managers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: f.get("name"), email: f.get("email"), password: f.get("password") }),
+      });
+      msg.textContent = `${m.name} 담당자 계정을 만들었습니다.`;
+      msg.className = "message ok";
+      form.reset();
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = "message error";
+    } finally {
+      btn.disabled = false;
+    }
+  };
 }
 
 async function enterApp() {
@@ -134,6 +243,7 @@ async function enterApp() {
     `${currentUser.name} (${ROLE_LABEL[currentUser.role] || currentUser.role})`;
   authView.hidden = true;
   appView.hidden = false;
+  renderNav();
   renderPage();
 }
 

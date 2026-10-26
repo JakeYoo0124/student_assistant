@@ -6,6 +6,7 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True)
     password_hash: str
     role: str
+    status: str = Field(default="active")  # pending(승인 대기) / active
 
 class UserCreate(SQLModel):
     name: str
