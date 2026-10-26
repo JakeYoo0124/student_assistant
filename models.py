@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlmodel import SQLModel, Field
 
@@ -69,4 +69,78 @@ class ScheduleRead(SQLModel):
     start_date: date | None = None
     end_date: date | None = None
     holidays: list[HolidayRead] = []
+
+
+class ExcuseRequest(SQLModel, table=True):
+    """공결·휴가 신청. 상태: pending(승인 대기) → approved(증빙 대기) → submitted(증빙 확인 대기) → confirmed(인정 완료), 또는 rejected."""
+    id: int | None = Field(default=None, primary_key=True)
+    student_id: int = Field(foreign_key="user.id", index=True)
+    course: str
+    reason: str  # 사유 (excuse_rule.EXCUSE_RULE 의 키)
+    target: str  # 대상 (본인, 자녀 ...)
+    start_date: date
+    end_date: date
+    class_days: int  # 신청 기간 안의 수업일 수
+    recognized_days: int  # 규칙상 인정 가능한 일수
+    rule_note: str = ""  # 규칙 검사 결과 메시지
+    memo: str = ""
+    status: str = Field(default="pending", index=True)
+    evidence_due: date | None = None  # 승인 때 정해진다: 결석 마지막 날의 다음 수업일
+    manager_comment: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    decided_at: datetime | None = None
+
+
+class Evidence(SQLModel, table=True):
+    """증빙서류 파일. 파일은 uploads/ 에 무작위 이름으로 저장한다."""
+    id: int | None = Field(default=None, primary_key=True)
+    request_id: int = Field(foreign_key="excuserequest.id", index=True)
+    doc_name: str  # 어떤 서류인지 (예: 청첩장)
+    filename: str  # 학생이 올린 원래 파일 이름 (표시용)
+    stored_name: str
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    rejected: bool = False  # 담당자가 반려한 서류
+
+
+class ExcuseCreate(SQLModel):
+    reason: str
+    target: str
+    start_date: date
+    end_date: date
+    memo: str = ""
+
+
+class CommentIn(SQLModel):
+    comment: str = ""
+
+
+class EvidenceRead(SQLModel):
+    id: int
+    doc_name: str
+    filename: str
+    uploaded_at: datetime
+    rejected: bool
+
+
+class ExcuseRead(SQLModel):
+    id: int
+    student_id: int
+    student_name: str
+    course: str
+    reason: str
+    target: str
+    start_date: date
+    end_date: date
+    class_days: int
+    recognized_days: int
+    rule_note: str
+    memo: str
+    status: str
+    evidence_due: date | None
+    overdue: bool
+    required_docs: list[str]
+    submitted_docs: list[str]
+    evidence: list[EvidenceRead]
+    manager_comment: str
+    created_at: datetime
 

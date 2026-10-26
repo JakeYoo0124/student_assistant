@@ -124,10 +124,15 @@ const PAGES = {
       <div class="tile"><div class="label">결석·조퇴</div><div class="value soon">준비 중</div></div>
       <div class="tile"><div class="label">남은 휴가</div><div class="value soon">준비 중</div></div>
     </div>`,
-  request: () => placeholder("출결 신청", "결석·조퇴·휴가를 신청하는 화면입니다."),
+  request: () => `
+    <h2>출결 신청</h2>
+    <p class="desc">공결·휴가를 신청합니다. 신청이 승인되면 증빙서류를 올려 주세요.</p>
+    <div id="req-root"></div>`,
   status: (u) => u.role === "manager"
     ? placeholder("전체 출결 현황", "모든 반 학생의 출결 기록과 위험군을 보는 화면입니다.")
-    : placeholder("출결 현황", "내 출결 기록과 승인 상태를 보는 화면입니다."),
+    : `<h2>출결 현황</h2>
+       <p class="desc">내가 신청한 내역과 승인 상태입니다. 승인된 신청은 기한 안에 증빙서류를 올려 주세요.</p>
+       <div id="my-root"></div>`,
   calendar: (u) => `
     <h2>${u.role === "manager" ? "수업 일정 관리" : "수업 일정"}</h2>
     <p class="desc">${u.role === "manager"
@@ -143,7 +148,10 @@ const PAGES = {
     <h2>가입 승인</h2>
     <p class="desc">가입을 신청한 학생입니다. 승인해야 로그인할 수 있습니다.</p>
     <div id="signup-list" class="list"><div class="placeholder">불러오는 중...</div></div>`,
-  approvals: () => placeholder("출결 승인", "학생들의 결석·조퇴·휴가 신청을 확인하고 승인하는 화면입니다."),
+  approvals: () => `
+    <h2>출결 승인</h2>
+    <p class="desc">학생들의 신청을 승인하고, 제출된 증빙서류를 확인합니다.</p>
+    <div id="apr-root"></div>`,
   managers: () => `
     <h2>담당자 관리</h2>
     <p class="desc">새 담당자 계정을 추가합니다. 담당자는 모든 반의 신청을 승인할 수 있습니다.</p>
@@ -186,6 +194,9 @@ function renderPage() {
   if (key === "managers") bindManagerForm();
   if (key === "signups") loadSignups();
   if (key === "calendar") initCalendarPage();
+  if (key === "request") initRequestPage();
+  if (key === "status" && currentUser.role !== "manager") initMyRequestsPage();
+  if (key === "approvals") initApprovalsPage();
 }
 
 async function loadSignups() {

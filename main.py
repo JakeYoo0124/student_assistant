@@ -10,8 +10,10 @@ from models import (
 from schedule import get_term, holidays_of, next_class_day, public_holiday_name
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from security import hash_password, verify_password, create_access_token, decode_token
+from fastapi.security import OAuth2PasswordRequestForm
+from security import hash_password, verify_password, create_access_token
+from auth import get_current_user, require_manager
+from excuse_api import router as excuse_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,8 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+app.include_router(excuse_router)
 
 @app.get("/")
 def home():
@@ -61,23 +62,10 @@ def login(form: OAuth2PasswordRequestForm = Depends(), session: Session = Depend
         raise HTTPException(status_code=403, detail="담당자의 가입 승인을 기다리는 중입니다")
     return {"access_token": create_access_token(user.id), "token_type": "bearer"}
 
-def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)) -> User:
-    user_id = decode_token(token)
-    user = session.get(User, user_id) if user_id else None
-    if not user or user.status != "active":
-        raise HTTPException(status_code=401, detail="로그인이 필요합니다")
-    return user
-
 @app.get("/me", response_model=UserRead)
 def me(user: User = Depends(get_current_user)):
     return user
 
-
-def require_manager(user: User = Depends(get_current_user)) -> User:
-    """담당자만 통과시키는 검사. 담당자 전용 API에 Depends로 붙여 쓴다."""
-    if user.role != "manager":
-        raise HTTPException(status_code=403, detail="담당자만 사용할 수 있습니다")
-    return user
 
 @app.post("/managers", response_model=UserRead)
 def create_manager(

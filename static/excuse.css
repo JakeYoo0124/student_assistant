@@ -1,0 +1,57 @@
+/* 출결 신청 / 현황 / 승인 */
+.panel.wide { max-width: 560px; }
+.panel textarea {
+  display: block; width: 100%; margin-top: 7px; padding: 12px 14px; resize: vertical;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--text);
+  font: inherit; font-size: 15px;
+}
+.panel textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(65, 74, 255, 0.15); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.muted { color: var(--muted); font-size: 13px; }
+
+.info { margin: 0 0 16px; padding: 14px 16px; border-radius: 10px; background: rgba(65, 74, 255, 0.06); font-size: 14px; line-height: 1.55; }
+.info p { margin: 0 0 8px; }
+.info ul { margin: 0 0 8px; padding-left: 20px; }
+.info summary { cursor: pointer; font-weight: 600; }
+.info details p { margin: 4px 0 6px; color: var(--muted); font-weight: 400; }
+.info .note { color: var(--muted); font-size: 13px; }
+
+.req-card { max-width: 680px; margin-bottom: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.req-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.req-card p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
+.req-card .who-line { font-size: 14px; color: var(--muted); }
+.req-card .meta { color: var(--muted); }
+.req-card .memo { padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.req-card .warn { color: #b45309; }
+.req-card .comment { padding: 8px 10px; border-radius: 8px; background: rgba(255, 65, 193, 0.08); }
+
+.badge { flex-shrink: 0; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--line); color: var(--text); }
+.badge.pending { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+.badge.approved { background: rgba(0, 215, 248, 0.16); color: #0b7a8f; }
+.badge.submitted { background: rgba(65, 74, 255, 0.14); color: #2f37e0; }
+.badge.confirmed { background: rgba(50, 239, 122, 0.2); color: #12804a; }
+.badge.rejected { background: rgba(229, 72, 77, 0.14); color: var(--danger); }
+
+.evidence { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.evidence ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.evidence li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; }
+.evidence .doc { font-weight: 600; }
+.evidence a { color: var(--blue); }
+.evidence .up { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.evidence input[type="file"] { max-width: 220px; font-size: 13px; }
+.due { margin: 0; font-size: 14px; }
+.due.late { color: var(--danger); font-weight: 600; }
+
+.req-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.req-actions button { padding: 8px 14px; border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; }
+.req-actions .ok { border: 0; background: var(--gradient-btn); color: #fff; font-weight: 600; }
+.req-actions .danger:hover { color: var(--danger); border-color: var(--danger); }
+
+.tabs-lite { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.tabs-lite button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; }
+.tabs-lite button.on { border-color: var(--blue); background: rgba(65, 74, 255, 0.08); color: var(--blue); font-weight: 600; }
+
+@media (max-width: 720px) {
+  .two { grid-template-columns: 1fr; }
+  .req-card { padding: 14px; }
+}

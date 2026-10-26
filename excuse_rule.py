@@ -169,8 +169,11 @@ def accrued_vacation(course, 현재_훈련월):
     return min(현재_훈련월, vacation_limit(course))
 
 def check_excuse(사유, 대상, 제출서류, 신청일수, course=None,
-                 사용한_질병일수=0, 사용한_휴가일수=0, 현재_훈련월=1):
-    """공결 신청이 규칙에 맞는지 확인하고 인정일수를 돌려준다."""
+                 사용한_질병일수=0, 사용한_휴가일수=0, 현재_훈련월=1, 증빙_확인=True):
+    """공결 신청이 규칙에 맞는지 확인하고 인정일수를 돌려준다.
+
+    증빙_확인=False 이면 서류 검사를 건너뛴다 (승인 후에 증빙을 내는 흐름의 신청 단계용).
+    """
     def reject(msg):
         return {"인정": False, "인정일수": 0, "사유": msg}
  
@@ -182,10 +185,11 @@ def check_excuse(사유, 대상, 제출서류, 신청일수, course=None,
     if 대상 not in rule["대상"]:
         return reject(f"'{사유}'의 인정 대상이 아님 (가능: {', '.join(rule['대상'])})")
  
-    required = rule["증빙"][대상] if isinstance(rule["증빙"], dict) else rule["증빙"]
-    부족 = missing_docs(required, 제출서류)
-    if 부족:
-        return reject(f"증빙 부족: {', '.join(부족)}")
+    if 증빙_확인:
+        required = rule["증빙"][대상] if isinstance(rule["증빙"], dict) else rule["증빙"]
+        부족 = missing_docs(required, 제출서류)
+        if 부족:
+            return reject(f"증빙 부족: {', '.join(부족)}")
  
     # 사유별 최대 인정일수 결정
     최대 = rule["인정일수"]
