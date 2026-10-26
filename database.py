@@ -1,7 +1,9 @@
+import os
 from sqlmodel import SQLModel, create_engine
 from sqlmodel import Session
 
-engine = create_engine("sqlite:///database.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database.db")
+engine = create_engine(DATABASE_URL)
 
 def create_db():
     SQLModel.metadata.create_all(engine)
