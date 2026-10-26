@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>출결 에이전트</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- 로그인 / 회원가입 화면 -->
+  <main id="auth-view" class="auth">
+    <div class="card">
+      <div class="eyebrow">ATTENDANCE AGENT</div>
+      <h1>출결 에이전트</h1>
+      <p class="sub">결석·조퇴·휴가 신청부터 승인까지,<br>한 곳에서 간편하게.</p>
+
+      <div class="tabs">
+        <button id="tab-login" class="tab active" type="button">로그인</button>
+        <button id="tab-signup" class="tab" type="button">회원가입</button>
+      </div>
+
+      <form id="login-form">
+        <label>이메일<input name="email" type="email" required autocomplete="username"></label>
+        <label>비밀번호<input name="password" type="password" required autocomplete="current-password"></label>
+        <button class="primary" type="submit">로그인</button>
+      </form>
+
+      <form id="signup-form" hidden>
+        <label>이름<input name="name" type="text" required></label>
+        <label>이메일<input name="email" type="email" required autocomplete="username"></label>
+        <label>비밀번호<input name="password" type="password" required minlength="4" autocomplete="new-password"></label>
+        <button class="primary" type="submit">가입하기</button>
+      </form>
+
+      <p id="message" class="message" role="alert"></p>
+    </div>
+  </main>
+
+  <!-- 로그인 후 앱 화면 -->
+  <div id="app-view" class="app" hidden>
+    <aside class="sidebar">
+      <div class="brand">출결 에이전트</div>
+      <nav>
+        <a href="#home" class="nav-item active" data-page="home">홈</a>
+        <a href="#request" class="nav-item" data-page="request">출결 신청</a>
+        <a href="#status" class="nav-item" data-page="status">출결 현황</a>
+        <a href="#calendar" class="nav-item" data-page="calendar">수업 일정</a>
+        <a href="#notice" class="nav-item" data-page="notice">공지사항</a>
+        <a href="#docs" class="nav-item" data-page="docs">문서 보관함</a>
+        <a href="#chat" class="nav-item" data-page="chat">AI 도우미</a>
+      </nav>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <span id="user-info"></span>
+        <button id="logout" class="ghost" type="button">로그아웃</button>
+      </header>
+      <div id="page" class="page"></div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
