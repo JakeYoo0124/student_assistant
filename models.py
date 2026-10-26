@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlmodel import SQLModel, Field
 
 COURSES = ["AI에이전트과정", "아키텍처과정", "보안과정"]
@@ -26,3 +28,45 @@ class UserRead(SQLModel):
     email: str
     role: str
     course: str | None = None
+
+
+class CourseTerm(SQLModel, table=True):
+    """과정별 수업 기간. 이 기간의 평일에서 휴강일을 뺀 날이 수업일이다."""
+    course: str = Field(primary_key=True)
+    start_date: date
+    end_date: date
+
+
+class Holiday(SQLModel, table=True):
+    """휴강일. course 가 None 이면 모든 과정에 적용된다(공휴일 등)."""
+    id: int | None = Field(default=None, primary_key=True)
+    course: str | None = None
+    day: date
+    reason: str
+
+
+class TermIn(SQLModel):
+    start_date: date
+    end_date: date
+
+
+class HolidayCreate(SQLModel):
+    course: str | None = None
+    day: date
+    reason: str
+
+
+class HolidayRead(SQLModel):
+    id: int | None = None  # 공휴일(자동)은 id 가 없다
+    course: str | None = None
+    day: date
+    reason: str
+    public: bool = False  # True 면 공휴일(자동), 삭제 불가
+
+
+class ScheduleRead(SQLModel):
+    course: str
+    start_date: date | None = None
+    end_date: date | None = None
+    holidays: list[HolidayRead] = []
+

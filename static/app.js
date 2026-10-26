@@ -128,9 +128,12 @@ const PAGES = {
   status: (u) => u.role === "manager"
     ? placeholder("전체 출결 현황", "모든 반 학생의 출결 기록과 위험군을 보는 화면입니다.")
     : placeholder("출결 현황", "내 출결 기록과 승인 상태를 보는 화면입니다."),
-  calendar: (u) => u.role === "manager"
-    ? placeholder("수업 일정 관리", "반별 수업 기간과 휴강일을 입력하고 수정하는 화면입니다.")
-    : placeholder("수업 일정", "반별 수업일과 휴강일을 보는 캘린더입니다."),
+  calendar: (u) => `
+    <h2>${u.role === "manager" ? "수업 일정 관리" : "수업 일정"}</h2>
+    <p class="desc">${u.role === "manager"
+      ? "과정별 수업 기간과 휴강일을 입력합니다. 수업일은 수업 기간의 평일에서 휴강일을 뺀 날입니다."
+      : "내 과정의 수업일과 휴강일입니다."}</p>
+    <div id="cal-root"></div>`,
   notice: (u) => u.role === "manager"
     ? placeholder("공지 작성", "학생들에게 보낼 공지를 작성하는 화면입니다.")
     : placeholder("공지사항", "담당자가 올린 공지를 보는 화면입니다."),
@@ -182,6 +185,7 @@ function renderPage() {
   });
   if (key === "managers") bindManagerForm();
   if (key === "signups") loadSignups();
+  if (key === "calendar") initCalendarPage();
 }
 
 async function loadSignups() {

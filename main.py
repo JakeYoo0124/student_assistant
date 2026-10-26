@@ -2,7 +2,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Session, select
 from database import create_db, get_session
-from models import User, UserCreate, UserRead, COURSES
+from datetime import date
+from models import (
+    User, UserCreate, UserRead, COURSES,
+    CourseTerm, Holiday, TermIn, HolidayCreate, HolidayRead, ScheduleRead,
+)
+from schedule import get_term, holidays_of, next_class_day, public_holiday_name
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -123,3 +128,79 @@ def reject_signup(user_id: int, session: Session = Depends(get_session), _: User
     session.delete(user)
     session.commit()
     return {"ok": True}
+
+
+# ── 수업 일정 ───────────────────────────────────────────────
+def check_course(course: str):
+    if course not in COURSES:
+        raise HTTPException(status_code=404, detail="없는 과정입니다")
+
+def can_view_course(user: User, course: str):
+    # 담당자는 모든 과정, 학생은 자기 과정만
+    if user.role != "manager" and user.course != course:
+        raise HTTPException(status_code=403, detail="다른 과정의 일정은 볼 수 없습니다")
+
+@app.get("/schedule/{course}", response_model=ScheduleRead)
+def get_schedule(course: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    check_course(course)
+    can_view_course(user, course)
+    term = get_term(session, course)
+    return ScheduleRead(
+        course=course,
+        start_date=term.start_date if term else None,
+        end_date=term.end_date if term else None,
+        holidays=holidays_of(session, course),
+    )
+
+@app.put("/schedule/{course}", response_model=ScheduleRead)
+def set_term(course: str, data: TermIn, session: Session = Depends(get_session), _: User = Depends(require_manager)):
+    check_course(course)
+    if data.end_date < data.start_date:
+        raise HTTPException(status_code=400, detail="종료일은 시작일보다 빠를 수 없습니다")
+    term = get_term(session, course)
+    if term:
+        term.start_date, term.end_date = data.start_date, data.end_date
+    else:
+        term = CourseTerm(course=course, start_date=data.start_date, end_date=data.end_date)
+    session.add(term)
+    session.commit()
+    return ScheduleRead(course=course, start_date=term.start_date, end_date=term.end_date,
+                        holidays=holidays_of(session, course))
+
+@app.post("/holidays", response_model=HolidayRead)
+def add_holiday(data: HolidayCreate, session: Session = Depends(get_session), _: User = Depends(require_manager)):
+    if data.course is not None:
+        check_course(data.course)
+    reason = data.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="휴강 사유를 입력해 주세요")
+    if data.day.weekday() >= 5:
+        raise HTTPException(status_code=400, detail="토요일·일요일은 이미 쉬는 날이라 따로 등록하지 않아도 됩니다")
+    public_name = public_holiday_name(data.day)
+    if public_name:
+        raise HTTPException(status_code=400, detail=f"이미 공휴일({public_name})로 자동 등록되어 있습니다")
+    dup = session.exec(select(Holiday).where(Holiday.day == data.day, Holiday.course == data.course)).first()
+    if dup:
+        raise HTTPException(status_code=400, detail="이미 등록된 휴강일입니다")
+    holiday = Holiday(course=data.course, day=data.day, reason=reason)
+    session.add(holiday)
+    session.commit()
+    session.refresh(holiday)
+    return holiday
+
+@app.delete("/holidays/{holiday_id}")
+def delete_holiday(holiday_id: int, session: Session = Depends(get_session), _: User = Depends(require_manager)):
+    holiday = session.get(Holiday, holiday_id)
+    if not holiday:
+        raise HTTPException(status_code=404, detail="없는 휴강일입니다")
+    session.delete(holiday)
+    session.commit()
+    return {"ok": True}
+
+@app.get("/schedule/{course}/next-class-day")
+def get_next_class_day(course: str, after: date, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    check_course(course)
+    can_view_course(user, course)
+    days = {h.day for h in holidays_of(session, course)}
+    return {"after": after, "next_class_day": next_class_day(get_term(session, course), days, after)}
+

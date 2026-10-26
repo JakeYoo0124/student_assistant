@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+pwdlib[argon2]
+pyjwt
+python-multipart
+holidays

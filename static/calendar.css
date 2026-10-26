@@ -1,0 +1,67 @@
+/* 수업 일정 (달력) */
+.toolbar { margin-bottom: 16px; }
+.toolbar label { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.toolbar select,
+.panel select {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.panel select { display: block; width: 100%; margin-top: 7px; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+.panel select option { background: #fff; color: var(--text); }
+.panel h3 { margin: 0 0 14px; font-size: 16px; }
+
+.cal-card { max-width: 640px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-size: 17px; }
+.cal-head .ghost { width: 36px; height: 36px; padding: 0; font-size: 20px; line-height: 1; }
+.term { margin: 0 0 14px; text-align: center; font-size: 13px; color: var(--muted); }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-grid .dow { padding: 6px 0; text-align: center; font-size: 12px; color: var(--muted); }
+.cal-grid .dow.sun { color: var(--danger); }
+
+.day {
+  position: relative;
+  min-height: 58px;
+  padding: 6px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--bg);
+  color: #aaa;
+  font-size: 13px;
+}
+.day.blank { background: none; }
+.day.class { background: rgba(65, 74, 255, 0.09); color: var(--text); }
+.day.holiday { background: rgba(255, 65, 193, 0.12); color: var(--text); }
+.day.weekend { background: #ececec; color: #9a9a9a; }
+.day.sun .num { color: var(--danger); }
+.day.sat .num { color: #3b6fe0; }
+.day.weekend.sun .num { color: #e58a8d; }
+.day.weekend.sat .num { color: #86a5ea; }
+.day.holiday.sun .num { color: var(--danger); }
+.day.holiday.sat .num { color: #3b6fe0; }
+.day .num { font-weight: 600; }
+.day .tag { display: block; margin-top: 3px; font-size: 11px; line-height: 1.25; color: #c2278f; overflow-wrap: anywhere; }
+.day.today { outline: 2px solid var(--cyan); outline-offset: -2px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+.legend .dot { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 4px; vertical-align: -1px; }
+.dot.class { background: rgba(65, 74, 255, 0.3); }
+.dot.holiday { background: rgba(255, 65, 193, 0.35); }
+.dot.off { background: var(--line); }
+.dot.weekend { background: #d4d4d4; }
+.hint { margin: -6px 0 14px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+
+.manage { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 320px)); gap: 16px; margin: 20px 0; }
+.manage .panel { max-width: none; }
+.section { margin: 24px 0 10px; font-size: 16px; }
+
+@media (max-width: 720px) {
+  .day { min-height: 46px; padding: 4px; }
+  .day .tag { font-size: 10px; }
+  .cal-card { padding: 14px; }
+}
