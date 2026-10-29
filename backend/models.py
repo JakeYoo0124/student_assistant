@@ -185,3 +185,51 @@ class AbsenceBrief(SQLModel):
     recognized_days: int
     approved: bool  # False 면 아직 승인 대기 중
 
+
+class ShortRequest(SQLModel, table=True):
+    """조퇴·외출 간단 신청. 날짜·시간·사유만 적어서 내고 담당자가 승인한다 (증빙서류 없음).
+    상태: pending(승인 대기) → approved(승인) 또는 rejected(반려)."""
+    id: int | None = Field(default=None, primary_key=True)
+    student_id: int = Field(foreign_key="user.id", index=True)
+    course: str
+    kind: str  # "조퇴" 또는 "외출"
+    day: date = Field(index=True)
+    start_time: time  # 조퇴: 나가는 시각 / 외출: 나가는 시각
+    end_time: time | None = None  # 외출만: 돌아오는 시각
+    reason: str
+    status: str = Field(default="pending", index=True)
+    manager_comment: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    decided_at: datetime | None = None
+
+
+class ShortCreate(SQLModel):
+    kind: str
+    day: date
+    start_time: time
+    end_time: time | None = None
+    reason: str
+
+
+class ShortRead(SQLModel):
+    id: int
+    student_id: int
+    student_name: str
+    course: str
+    kind: str
+    day: date
+    start_time: time
+    end_time: time | None
+    reason: str
+    status: str
+    manager_comment: str
+    created_at: datetime
+
+
+class CalendarMark(SQLModel):
+    """학생 본인의 달력에 칠하는 한 칸. 승인됐거나 신청 중인 결석·휴가·조퇴·외출."""
+    day: date
+    kind: str  # 공결 / 휴가 / 조퇴 / 외출
+    label: str
+    pending: bool  # True 면 아직 승인 전(연하게 표시)
+

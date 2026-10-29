@@ -131,13 +131,21 @@ const PAGES = {
     <div id="home-plan"></div>`,
   request: () => `
     <h2>출결 신청</h2>
-    <p class="desc">공결·휴가를 신청합니다. 신청이 승인되면 증빙서류를 올려 주세요.</p>
-    <div id="req-root"></div>`,
+    <p class="desc">결석(공결·휴가), 조퇴, 외출을 신청합니다. 결석은 승인된 뒤 증빙서류를 올려 주세요.</p>
+    <div class="tabs-lite" id="req-kinds">
+      <button type="button" data-kind="absence" class="on">결석·휴가</button>
+      <button type="button" data-kind="조퇴">조퇴</button>
+      <button type="button" data-kind="외출">외출</button>
+    </div>
+    <div id="req-root"></div>
+    <div id="short-root" hidden></div>`,
   status: (u) => u.role === "manager"
     ? placeholder("전체 출결 현황", "모든 반 학생의 출결 기록과 위험군을 보는 화면입니다.")
     : `<h2>출결 현황</h2>
        <p class="desc">내가 신청한 내역과 승인 상태입니다. 승인된 신청은 기한 안에 증빙서류를 올려 주세요.</p>
-       <div id="my-root"></div>`,
+       <div id="my-root"></div>
+       <h3 class="section">조퇴·외출 신청</h3>
+       <div id="my-short-root"></div>`,
   calendar: (u) => `
     <h2>${{ manager: "수업 일정 관리", instructor: "수업 일정·계획" }[u.role] || "수업 일정"}</h2>
     <p class="desc">${{
@@ -161,7 +169,12 @@ const PAGES = {
   approvals: () => `
     <h2>출결 승인</h2>
     <p class="desc">학생들의 신청을 승인하고, 제출된 증빙서류를 확인합니다.</p>
-    <div id="apr-root"></div>`,
+    <div class="tabs-lite" id="apr-kinds">
+      <button type="button" data-kind="absence" class="on">결석·휴가</button>
+      <button type="button" data-kind="short">조퇴·외출</button>
+    </div>
+    <div id="apr-root"></div>
+    <div id="apr-short-root" hidden></div>`,
   managers: () => `
     <h2>담당자 관리</h2>
     <p class="desc">새 담당자 계정을 추가합니다. 담당자는 모든 반의 신청을 승인할 수 있습니다.</p>
@@ -207,9 +220,9 @@ function renderPage() {
   if (key === "absences") initAbsencesPage();
   if (key === "signups") loadSignups();
   if (key === "calendar") initCalendarPage();
-  if (key === "request") initRequestPage();
-  if (key === "status" && currentUser.role !== "manager") initMyRequestsPage();
-  if (key === "approvals") initApprovalsPage();
+  if (key === "request") { initRequestPage(); initShortForm(); }
+  if (key === "status" && currentUser.role !== "manager") { initMyRequestsPage(); initMyShortList(); }
+  if (key === "approvals") { initApprovalsPage(); initApprovalKinds(); }
 }
 
 async function loadSignups() {

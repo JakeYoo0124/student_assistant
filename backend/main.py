@@ -16,6 +16,7 @@ from security import hash_password, verify_password, create_access_token
 from auth import get_current_user, require_manager, check_course, can_view_course
 from excuse_api import router as excuse_router
 from plan_api import router as plan_router
+from short_api import router as short_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +29,7 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.include_router(excuse_router)
 app.include_router(plan_router)
+app.include_router(short_router)
 
 @app.get("/")
 def home():

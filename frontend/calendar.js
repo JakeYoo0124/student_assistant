@@ -1,6 +1,11 @@
 // 수업 일정(달력)과 일일 수업 계획 화면. app.js 의 api, currentUser, escapeHtml 을 사용한다.
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const cal = { course: null, year: 0, month: 0, schedule: null, plans: [], selected: null, editingId: null };
+const cal = { course: null, year: 0, month: 0, schedule: null, plans: [], marks: [], selected: null, editingId: null };
+
+// 학생 본인 달력의 출결 표시 (공결·휴가·조퇴·외출)
+const MARK_CLASS = { 공결: "gong", 휴가: "vac", 조퇴: "early", 외출: "out" };
+const markChip = (m) =>
+  `<span class="mk mk-${MARK_CLASS[m.kind]}${m.pending ? " pend" : ""}" title="${escapeHtml(m.label)}${m.pending ? " (신청 중)" : ""}">${m.kind}</span>`;
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
@@ -47,6 +52,8 @@ async function loadPlans() {
   const start = ymd(cal.year, cal.month, 1);
   const end = ymd(cal.year, cal.month, last);
   cal.plans = await api(`/plans/${encodeURIComponent(cal.course)}?start=${start}&end=${end}`);
+  // 학생에게는 내가 빠진 날·조퇴·외출도 같이 불러와서 칠한다
+  cal.marks = currentUser.role === "student" ? await api(`/mycalendar?start=${start}&end=${end}`) : [];
 }
 
 async function loadCalendar() {
@@ -79,6 +86,13 @@ function drawCalendar() {
   const today = new Date();
   const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate());
   const planDays = new Set(cal.plans.map((p) => p.day));
+  const marksByDay = {};
+  cal.marks.forEach((m) => (marksByDay[m.day] ||= []).push(m));
+  // 칸이 좁아서 2개까지만 보이므로, 확정된 것(실선)을 먼저, 그다음 결석 > 조퇴 > 외출 순으로 보여준다
+  const KIND_ORDER = ["공결", "휴가", "조퇴", "외출"];
+  Object.values(marksByDay).forEach((list) =>
+    list.sort((a, b) => a.pending - b.pending || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind)),
+  );
 
   let cells = "";
   for (let i = 0; i < first.getDay(); i++) cells += '<div class="day blank"></div>';
@@ -91,7 +105,11 @@ function drawCalendar() {
     const dot = planDays.has(dateStr) ? '<i class="pd" title="수업 계획 있음"></i>' : "";
     const dowClass = dow === 0 ? " sun" : dow === 6 ? " sat" : "";
     const sel = dateStr === cal.selected ? " selected" : "";
-    cells += `<div class="day ${info.type}${dowClass}${dateStr === todayStr ? " today" : ""}${sel}" data-date="${dateStr}"${title}><span class="num">${d}</span>${dot}${tag}</div>`;
+    const mine = marksByDay[dateStr] || [];
+    const chips = mine.length
+      ? `<div class="mks">${mine.slice(0, 2).map(markChip).join("")}${mine.length > 2 ? `<span class="mk-more">+${mine.length - 2}</span>` : ""}</div>`
+      : "";
+    cells += `<div class="day ${info.type}${dowClass}${dateStr === todayStr ? " today" : ""}${sel}" data-date="${dateStr}"${title}><span class="num">${d}</span>${dot}${tag}${chips}</div>`;
   }
 
   const termText = start && end ? `수업 기간 ${start} ~ ${end}` : "수업 기간이 아직 등록되지 않았습니다.";
@@ -154,6 +172,12 @@ function drawCalendar() {
         <span><i class="dot weekend"></i>주말(휴무)</span>
         <span><i class="dot off"></i>수업 기간 밖</span>
         <span><i class="dot plan"></i>수업 계획 있음</span>
+        ${currentUser.role === "student" ? `
+        <span><i class="chip mk-gong"></i>공결</span>
+        <span><i class="chip mk-vac"></i>휴가</span>
+        <span><i class="chip mk-early"></i>조퇴</span>
+        <span><i class="chip mk-out"></i>외출</span>
+        <span><i class="chip pend"></i>점선 = 승인 전</span>` : ""}
       </div>
     </div>
     <div id="plan-panel"></div>
@@ -248,9 +272,17 @@ function renderPlanPanel() {
       </form>`
       : "";
 
+  const myMarks = cal.marks.filter((x) => x.day === cal.selected);
+  const myDay = myMarks.length
+    ? `<div class="my-day"><h4>내 출결</h4>${myMarks
+        .map((x) => `<div class="item">${markChip(x)}<span>${escapeHtml(x.label)}${x.pending ? " (승인 대기)" : ""}</span></div>`)
+        .join("")}</div>`
+    : "";
+
   panel.innerHTML = `
     <section class="plan-panel">
       <h3>${m}월 ${d}일(${WEEKDAYS[dow]}) 수업 계획</h3>
+      ${myDay}
       ${content}
       ${form}
     </section>`;

@@ -1,0 +1,44 @@
+/* 조퇴·외출 신청과 내 달력의 출결 표시 */
+:root {
+  --mk-gong: #e5484d;   /* 공결(승인된 결석) */
+  --mk-vac: #0d9488;    /* 휴가 */
+  --mk-early: #f97316;  /* 조퇴 */
+  --mk-out: #0284c7;    /* 외출 */
+}
+
+.hint { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+
+/* 달력 칸 안의 작은 표시 */
+.day .mks { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; }
+.mk {
+  display: block; padding: 1px 4px; border-radius: 4px; font-size: 10px; line-height: 1.3; font-weight: 700;
+  color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mk-gong { background: var(--mk-gong); }
+.mk-vac { background: var(--mk-vac); }
+.mk-early { background: var(--mk-early); }
+.mk-out { background: var(--mk-out); }
+.mk.pend { background: transparent; border: 1px dashed currentColor; font-weight: 600; }
+.mk-gong.pend { color: var(--mk-gong); }
+.mk-vac.pend { color: var(--mk-vac); }
+.mk-early.pend { color: var(--mk-early); }
+.mk-out.pend { color: var(--mk-out); }
+.mk-more { font-size: 10px; color: var(--muted); }
+
+/* 범례 */
+.legend .chip { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 4px; vertical-align: -1px; }
+.chip.mk-gong { background: var(--mk-gong); }
+.chip.mk-vac { background: var(--mk-vac); }
+.chip.mk-early { background: var(--mk-early); }
+.chip.mk-out { background: var(--mk-out); }
+.chip.pend { background: transparent; border: 1px dashed var(--muted); }
+
+/* 선택한 날의 '내 출결' */
+.my-day { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.my-day h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.my-day .item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 14px; }
+.my-day .item .mk { flex-shrink: 0; }
+
+@media (max-width: 720px) {
+  .mk { font-size: 9px; padding: 1px 3px; }
+}

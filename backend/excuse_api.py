@@ -12,7 +12,7 @@ from auth import get_current_user, require_instructor, require_manager, require_
 from database import get_session
 from excuse_rule import DOC_GUIDE, EXCUSE_RULE, CourseInfo, check_excuse, missing_docs
 from models import (
-    AbsenceBrief, CommentIn, CourseTerm, Evidence, EvidenceRead, ExcuseCreate, ExcuseRead, ExcuseRequest, User,
+    AbsenceBrief, CommentIn, CourseTerm, Evidence, ShortRequest, EvidenceRead, ExcuseCreate, ExcuseRead, ExcuseRequest, User,
 )
 from schedule import get_term, holidays_of, is_class_day, next_class_day
 
@@ -201,6 +201,17 @@ def create_request(data: ExcuseCreate, session: Session = Depends(get_session), 
     ).first()
     if overlap:
         raise HTTPException(status_code=400, detail="같은 기간에 이미 신청한 내역이 있습니다")
+    # 결석 기간 안에 이미 신청한 조퇴·외출이 있으면 겹친다 (하루 종일 빠지는 결석이 우선이라 먼저 정리해야 한다)
+    short_clash = session.exec(
+        select(ShortRequest).where(
+            ShortRequest.student_id == student.id,
+            ShortRequest.status.in_(("pending", "approved")),
+            ShortRequest.day >= data.start_date,
+            ShortRequest.day <= data.end_date,
+        )
+    ).first()
+    if short_clash:
+        raise HTTPException(status_code=400, detail=f"{short_clash.day}에 이미 {short_clash.kind} 신청이 있습니다. 먼저 취소하거나 날짜를 바꿔 주세요")
 
     # 신청 단계에서는 사유·대상·한도만 검사한다 (증빙은 승인 후에 낸다)
     result = check_excuse(
