@@ -20,6 +20,13 @@ router = APIRouter(prefix="/excuse", tags=["excuse"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")  # backend/uploads
 ALLOWED_EXT = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+# 확장자만 믿지 않고 파일 앞부분(매직 바이트)이 실제 형식과 맞는지도 확인한다
+FILE_SIGNATURES = {
+    ".pdf": (b"%PDF-",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 HOURS_PER_DAY = 8  # 질병·휴가 한도 계산에 쓰는 하루 훈련시간 (수업 9:10~18:00, 점심 제외)
 ACTIVE = ("pending", "approved", "submitted", "confirmed")  # 한도·겹침 계산에 포함하는 상태
@@ -61,6 +68,14 @@ def course_info(term: CourseTerm, holiday_days: set[date]) -> CourseInfo:
         훈련기간_개월=months,
         훈련기간_잔여일=rest,
     )
+
+
+def matches_signature(ext: str, content: bytes) -> bool:
+    """파일 앞부분이 확장자에 맞는 형식인지 확인한다 (이름만 바꾼 가짜 파일 방지)."""
+    if ext == ".pdf":
+        # PDF 는 머리말 앞에 몇 바이트가 붙는 경우가 있어서 처음 1KB 안에서 찾는다
+        return any(sig in content[:1024] for sig in FILE_SIGNATURES[ext])
+    return any(content.startswith(sig) for sig in FILE_SIGNATURES[ext])
 
 
 def required_docs(reason: str, target: str) -> list[str]:
@@ -244,8 +259,10 @@ def approve(request_id: int, session: Session = Depends(get_session), _: User = 
         raise HTTPException(status_code=400, detail="승인 대기 중인 신청이 아닙니다")
     term = get_term(session, req.course)
     holiday_days = {h.day for h in holidays_of(session, req.course)}
-    # 증빙 기한: 결석 마지막 날의 다음 수업일 (수업이 끝나 없으면 마지막 날)
-    req.evidence_due = next_class_day(term, holiday_days, req.end_date) or req.end_date
+    # 증빙 기한: 결석 마지막 날의 다음 수업일. 승인이 결석 끝난 뒤에 늦게 이뤄지면
+    # 승인한 날을 기준으로 삼아서, 승인 즉시 기한이 지난 상태가 되지 않게 한다.
+    base = max(req.end_date, date.today())
+    req.evidence_due = next_class_day(term, holiday_days, base) or base
     req.status = "approved"
     req.decided_at = datetime.now(timezone.utc)
     session.add(req)
@@ -291,6 +308,8 @@ async def upload_evidence(
         raise HTTPException(status_code=400, detail="파일은 5MB 이하여야 합니다")
     if not content:
         raise HTTPException(status_code=400, detail="빈 파일입니다")
+    if not matches_signature(ext, content):
+        raise HTTPException(status_code=400, detail="파일 내용이 확장자와 맞지 않습니다. 올바른 PDF, JPG, PNG 파일을 올려 주세요")
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     stored = f"{uuid.uuid4().hex}{ext}"
