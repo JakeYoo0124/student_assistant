@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
-from auth import get_current_user, require_manager, require_student
+from auth import get_current_user, require_instructor, require_manager, require_student
 from database import get_session
 from excuse_rule import DOC_GUIDE, EXCUSE_RULE, CourseInfo, check_excuse, missing_docs
 from models import (
-    CommentIn, CourseTerm, Evidence, EvidenceRead, ExcuseCreate, ExcuseRead, ExcuseRequest, User,
+    AbsenceBrief, CommentIn, CourseTerm, Evidence, EvidenceRead, ExcuseCreate, ExcuseRead, ExcuseRequest, User,
 )
 from schedule import get_term, holidays_of, is_class_day, next_class_day
 
@@ -231,6 +231,32 @@ def my_requests(session: Session = Depends(get_session), student: User = Depends
         select(ExcuseRequest).where(ExcuseRequest.student_id == student.id).order_by(ExcuseRequest.id.desc())
     ).all()
     return [to_read(session, r) for r in rows]
+
+
+# ── 강사: 우리 과정의 결석 예정 (이름·기간만, 사유와 서류는 보여주지 않는다) ──
+@router.get("/course", response_model=list[AbsenceBrief])
+def course_absences(session: Session = Depends(get_session), instructor: User = Depends(require_instructor)):
+    if not instructor.course:
+        return []
+    rows = session.exec(
+        select(ExcuseRequest)
+        .where(
+            ExcuseRequest.course == instructor.course,
+            ExcuseRequest.status.in_(ACTIVE),
+            ExcuseRequest.end_date >= date.today(),  # 지금 진행 중이거나 앞으로 올 결석
+        )
+        .order_by(ExcuseRequest.start_date, ExcuseRequest.id)
+    ).all()
+    out = []
+    for r in rows:
+        student = session.get(User, r.student_id)
+        out.append(AbsenceBrief(
+            student_name=student.name if student else "(삭제된 사용자)",
+            start_date=r.start_date, end_date=r.end_date,
+            class_days=r.class_days, recognized_days=r.recognized_days,
+            approved=r.status != "pending",
+        ))
+    return out
 
 
 @router.delete("/{request_id}")

@@ -101,13 +101,16 @@ document.getElementById("signup-form").onsubmit = async (e) => {
 };
 
 // ── 앱 화면 ────────────────────────────────────────────────
-const ROLE_LABEL = { student: "학생", manager: "담당자" };
+const ROLE_LABEL = { student: "학생", instructor: "강사", manager: "담당자" };
 
 // 역할별 메뉴. 화면에서만 숨기는 것이고, 실제 권한은 서버가 검사한다.
 const NAV = {
   student: [
     ["home", "홈"], ["request", "출결 신청"], ["status", "출결 현황"],
     ["calendar", "수업 일정"], ["notice", "공지사항"], ["docs", "문서 보관함"], ["chat", "AI 도우미"],
+  ],
+  instructor: [
+    ["home", "홈"], ["calendar", "수업 일정·계획"], ["absences", "결석 예정"], ["chat", "AI 도우미"],
   ],
   manager: [
     ["home", "홈"], ["signups", "가입 승인"], ["approvals", "출결 승인"], ["status", "전체 출결 현황"],
@@ -118,12 +121,14 @@ const NAV = {
 const PAGES = {
   home: (user) => `
     <h2>${escapeHtml(user.name)}님, 안녕하세요</h2>
-    <p class="desc">오늘의 출결 현황을 확인하세요.</p>
+    <p class="desc">${user.role === "instructor" ? "오늘의 수업 계획을 확인하세요." : "오늘의 출결 현황을 확인하세요."}</p>
+    ${user.role === "instructor" ? "" : `
     <div class="grid">
       <div class="tile"><div class="label">출석률</div><div class="value soon">준비 중</div></div>
       <div class="tile"><div class="label">결석·조퇴</div><div class="value soon">준비 중</div></div>
       <div class="tile"><div class="label">남은 휴가</div><div class="value soon">준비 중</div></div>
-    </div>`,
+    </div>`}
+    <div id="home-plan"></div>`,
   request: () => `
     <h2>출결 신청</h2>
     <p class="desc">공결·휴가를 신청합니다. 신청이 승인되면 증빙서류를 올려 주세요.</p>
@@ -134,10 +139,11 @@ const PAGES = {
        <p class="desc">내가 신청한 내역과 승인 상태입니다. 승인된 신청은 기한 안에 증빙서류를 올려 주세요.</p>
        <div id="my-root"></div>`,
   calendar: (u) => `
-    <h2>${u.role === "manager" ? "수업 일정 관리" : "수업 일정"}</h2>
-    <p class="desc">${u.role === "manager"
-      ? "과정별 수업 기간과 휴강일을 입력합니다. 수업일은 수업 기간의 평일에서 휴강일을 뺀 날입니다."
-      : "내 과정의 수업일과 휴강일입니다."}</p>
+    <h2>${{ manager: "수업 일정 관리", instructor: "수업 일정·계획" }[u.role] || "수업 일정"}</h2>
+    <p class="desc">${{
+      manager: "과정별 수업 기간과 휴강일을 입력합니다. 날짜를 누르면 강사가 쓴 그날의 수업 계획을 볼 수 있습니다.",
+      instructor: "날짜를 눌러 그날의 수업 계획을 시간대별로 쓰고 고칩니다. 학생은 이 계획을 읽기만 합니다.",
+    }[u.role] || "내 과정의 수업일과 휴강일입니다. 날짜를 누르면 그날의 수업 계획이 보입니다."}</p>
     <div id="cal-root"></div>`,
   notice: (u) => u.role === "manager"
     ? placeholder("공지 작성", "학생들에게 보낼 공지를 작성하는 화면입니다.")
@@ -148,6 +154,10 @@ const PAGES = {
     <h2>가입 승인</h2>
     <p class="desc">가입을 신청한 학생입니다. 승인해야 로그인할 수 있습니다.</p>
     <div id="signup-list" class="list"><div class="placeholder">불러오는 중...</div></div>`,
+  absences: () => `
+    <h2>결석 예정</h2>
+    <p class="desc">우리 과정에서 결석이 예정되었거나 진행 중인 학생입니다. 사유와 서류는 담당자만 확인합니다.</p>
+    <div id="abs-root" class="list"><div class="placeholder">불러오는 중...</div></div>`,
   approvals: () => `
     <h2>출결 승인</h2>
     <p class="desc">학생들의 신청을 승인하고, 제출된 증빙서류를 확인합니다.</p>
@@ -161,7 +171,8 @@ const PAGES = {
       <label>임시 비밀번호 (8자 이상)<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
       <button class="primary" type="submit">담당자 추가</button>
       <p id="manager-msg" class="message" role="alert"></p>
-    </form>`,
+    </form>
+    <div id="inst-root"></div>`,
 };
 
 function placeholder(title, desc) {
@@ -191,7 +202,9 @@ function renderPage() {
   document.querySelectorAll(".nav-item").forEach((a) => {
     a.classList.toggle("active", a.dataset.page === key);
   });
-  if (key === "managers") bindManagerForm();
+  if (key === "managers") { bindManagerForm(); initInstructorSection(); }
+  if (key === "home") initHomePlan();
+  if (key === "absences") initAbsencesPage();
   if (key === "signups") loadSignups();
   if (key === "calendar") initCalendarPage();
   if (key === "request") initRequestPage();

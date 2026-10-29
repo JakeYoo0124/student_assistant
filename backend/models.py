@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from sqlmodel import SQLModel, Field
 
@@ -143,4 +143,45 @@ class ExcuseRead(SQLModel):
     evidence: list[EvidenceRead]
     manager_comment: str
     created_at: datetime
+
+
+class DailyPlan(SQLModel, table=True):
+    """강사가 쓰는 하루 수업 계획의 한 칸 (하루에 여러 칸)."""
+    id: int | None = Field(default=None, primary_key=True)
+    course: str = Field(index=True)
+    day: date = Field(index=True)
+    start_time: time
+    end_time: time
+    title: str  # 주제
+    note: str = ""  # 준비물·메모
+    instructor_id: int = Field(foreign_key="user.id")
+
+
+class PlanCreate(SQLModel):
+    day: date
+    start_time: time
+    end_time: time
+    title: str
+    note: str = ""
+
+
+class PlanRead(SQLModel):
+    id: int
+    course: str
+    day: date
+    start_time: time
+    end_time: time
+    title: str
+    note: str
+    instructor_name: str
+
+
+class AbsenceBrief(SQLModel):
+    """강사에게 보여주는 결석 예정 정보. 사유·서류 같은 민감한 내용은 뺀다."""
+    student_name: str
+    start_date: date
+    end_date: date
+    class_days: int
+    recognized_days: int
+    approved: bool  # False 면 아직 승인 대기 중
 

@@ -1,15 +1,18 @@
-// 수업 일정(달력) 화면. app.js 의 api, currentUser, escapeHtml 을 사용한다.
+// 수업 일정(달력)과 일일 수업 계획 화면. app.js 의 api, currentUser, escapeHtml 을 사용한다.
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const cal = { course: null, year: 0, month: 0, schedule: null };
+const cal = { course: null, year: 0, month: 0, schedule: null, plans: [], selected: null, editingId: null };
 
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+const hhmm = (t) => String(t).slice(0, 5); // "09:10:00" -> "09:10"
 
 async function initCalendarPage() {
   const root = document.getElementById("cal-root");
   const now = new Date();
   cal.year = now.getFullYear();
   cal.month = now.getMonth();
+  cal.selected = ymd(cal.year, cal.month, now.getDate());
+  cal.editingId = null;
 
   if (currentUser.role === "manager") {
     const courses = await api("/courses");
@@ -25,6 +28,7 @@ async function initCalendarPage() {
       <div id="cal-body"></div>`;
     document.getElementById("cal-course").onchange = (e) => {
       cal.course = e.target.value;
+      cal.editingId = null;
       loadCalendar();
     };
   } else {
@@ -38,9 +42,17 @@ async function initCalendarPage() {
   loadCalendar();
 }
 
+async function loadPlans() {
+  const last = new Date(cal.year, cal.month + 1, 0).getDate();
+  const start = ymd(cal.year, cal.month, 1);
+  const end = ymd(cal.year, cal.month, last);
+  cal.plans = await api(`/plans/${encodeURIComponent(cal.course)}?start=${start}&end=${end}`);
+}
+
 async function loadCalendar() {
   try {
     cal.schedule = await api(`/schedule/${encodeURIComponent(cal.course)}`);
+    await loadPlans();
     drawCalendar();
   } catch (err) {
     document.getElementById("cal-body").innerHTML = `<div class="placeholder">${escapeHtml(err.message)}</div>`;
@@ -52,7 +64,7 @@ function dayType(dateStr, dow) {
   const { start_date: start, end_date: end, holidays } = cal.schedule;
   const holiday = holidays.find((h) => h.day === dateStr);
   if (holiday) return { type: "holiday", label: holiday.reason };
-  if (dow === 0 || dow === 6) return { type: "weekend" };  // 토·일은 항상 쉬는 날
+  if (dow === 0 || dow === 6) return { type: "weekend" }; // 토·일은 항상 쉬는 날
   if (start && end && dateStr >= start && dateStr <= end && dow >= 1 && dow <= 5) return { type: "class" };
   return { type: "off" };
 }
@@ -66,6 +78,7 @@ function drawCalendar() {
   const daysInMonth = new Date(cal.year, cal.month + 1, 0).getDate();
   const today = new Date();
   const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate());
+  const planDays = new Set(cal.plans.map((p) => p.day));
 
   let cells = "";
   for (let i = 0; i < first.getDay(); i++) cells += '<div class="day blank"></div>';
@@ -75,8 +88,10 @@ function drawCalendar() {
     const info = dayType(dateStr, dow);
     const title = info.label ? ` title="${escapeHtml(info.label)}"` : "";
     const tag = info.label ? `<span class="tag">${escapeHtml(info.label)}</span>` : "";
+    const dot = planDays.has(dateStr) ? '<i class="pd" title="수업 계획 있음"></i>' : "";
     const dowClass = dow === 0 ? " sun" : dow === 6 ? " sat" : "";
-    cells += `<div class="day ${info.type}${dowClass}${dateStr === todayStr ? " today" : ""}"${title}><span class="num">${d}</span>${tag}</div>`;
+    const sel = dateStr === cal.selected ? " selected" : "";
+    cells += `<div class="day ${info.type}${dowClass}${dateStr === todayStr ? " today" : ""}${sel}" data-date="${dateStr}"${title}><span class="num">${d}</span>${dot}${tag}</div>`;
   }
 
   const termText = start && end ? `수업 기간 ${start} ~ ${end}` : "수업 기간이 아직 등록되지 않았습니다.";
@@ -138,22 +153,200 @@ function drawCalendar() {
         <span><i class="dot holiday"></i>휴강·공휴일</span>
         <span><i class="dot weekend"></i>주말(휴무)</span>
         <span><i class="dot off"></i>수업 기간 밖</span>
+        <span><i class="dot plan"></i>수업 계획 있음</span>
       </div>
     </div>
+    <div id="plan-panel"></div>
     ${manage}
     <h3 class="section">휴강·공휴일 목록</h3>
     <div class="list">${holidayRows}</div>`;
 
   document.getElementById("cal-prev").onclick = () => shiftMonth(-1);
   document.getElementById("cal-next").onclick = () => shiftMonth(1);
+  body.querySelectorAll(".day[data-date]").forEach((el) => {
+    el.onclick = () => {
+      cal.selected = el.dataset.date;
+      cal.editingId = null;
+      body.querySelectorAll(".day.selected").forEach((x) => x.classList.remove("selected"));
+      el.classList.add("selected");
+      renderPlanPanel();
+    };
+  });
+  renderPlanPanel();
   if (isManager) bindScheduleForms();
 }
 
-function shiftMonth(delta) {
+async function shiftMonth(delta) {
   const d = new Date(cal.year, cal.month + delta, 1);
   cal.year = d.getFullYear();
   cal.month = d.getMonth();
+  cal.selected = null;
+  cal.editingId = null;
+  try {
+    await loadPlans();
+  } catch (err) {
+    alert(err.message);
+  }
   drawCalendar();
+}
+
+// ── 선택한 날짜의 수업 계획 ─────────────────────────────────
+function renderPlanPanel() {
+  const panel = document.getElementById("plan-panel");
+  if (!panel) return;
+  if (!cal.selected) {
+    panel.innerHTML = '<div class="plan-panel"><p class="muted">날짜를 눌러 그날의 수업 계획을 확인하세요.</p></div>';
+    return;
+  }
+  const [y, m, d] = cal.selected.split("-").map(Number);
+  const dow = new Date(y, m - 1, d).getDay();
+  const isClassDay = dayType(cal.selected, dow).type === "class";
+  const isInstructor = currentUser.role === "instructor";
+  const plans = cal.plans.filter((p) => p.day === cal.selected);
+
+  const rows = plans
+    .map(
+      (p) => `
+      <div class="plan-row" data-id="${p.id}">
+        <div class="time">${hhmm(p.start_time)}<span>~ ${hhmm(p.end_time)}</span></div>
+        <div class="what">
+          <strong>${escapeHtml(p.title)}</strong>
+          ${p.note ? `<p>${escapeHtml(p.note)}</p>` : ""}
+          <small>${escapeHtml(p.instructor_name)}</small>
+        </div>
+        ${isInstructor ? `<div class="actions"><button type="button" class="ghost" data-plan="edit">수정</button><button type="button" class="ghost danger" data-plan="delete">삭제</button></div>` : ""}
+      </div>`,
+    )
+    .join("");
+
+  let content;
+  if (!isClassDay) {
+    content = `<p class="muted">수업이 없는 날입니다 (주말·휴강일·수업 기간 밖).</p>`;
+  } else if (!plans.length) {
+    content = `<p class="muted">${isInstructor ? "아직 쓴 계획이 없습니다. 아래에서 시간대별로 추가해 주세요." : "아직 등록된 수업 계획이 없습니다."}</p>`;
+  } else {
+    content = rows;
+  }
+
+  const editing = plans.find((p) => p.id === cal.editingId);
+  const form =
+    isInstructor && isClassDay
+      ? `
+      <form id="plan-form" class="plan-form">
+        <h4>${editing ? "계획 수정" : "계획 추가"}</h4>
+        <div class="two">
+          <label>시작<input name="start" type="time" required value="${editing ? hhmm(editing.start_time) : "09:10"}"></label>
+          <label>종료<input name="end" type="time" required value="${editing ? hhmm(editing.end_time) : "10:00"}"></label>
+        </div>
+        <label>주제<input name="title" type="text" required maxlength="100" placeholder="예: 프롬프트 설계 기초" value="${editing ? escapeHtml(editing.title) : ""}"></label>
+        <label>준비물·메모<textarea name="note" rows="2" maxlength="500" placeholder="학생이 미리 준비할 것, 참고 자료 등">${editing ? escapeHtml(editing.note) : ""}</textarea></label>
+        <div class="req-actions">
+          <button class="primary small" type="submit">${editing ? "저장" : "추가"}</button>
+          ${editing ? '<button class="ghost" type="button" data-plan="cancel">수정 취소</button>' : ""}
+        </div>
+        <p id="plan-msg" class="message" role="alert"></p>
+      </form>`
+      : "";
+
+  panel.innerHTML = `
+    <section class="plan-panel">
+      <h3>${m}월 ${d}일(${WEEKDAYS[dow]}) 수업 계획</h3>
+      ${content}
+      ${form}
+    </section>`;
+  bindPlanPanel(panel);
+}
+
+function bindPlanPanel(panel) {
+  panel.onclick = async (e) => {
+    const btn = e.target.closest("[data-plan]");
+    if (!btn) return;
+    const row = btn.closest(".plan-row");
+    const act = btn.dataset.plan;
+    if (act === "edit") {
+      cal.editingId = Number(row.dataset.id);
+      renderPlanPanel();
+      document.getElementById("plan-form")?.scrollIntoView({ block: "nearest" });
+    } else if (act === "cancel") {
+      cal.editingId = null;
+      renderPlanPanel();
+    } else if (act === "delete") {
+      const title = row.querySelector("strong").textContent;
+      if (!confirm(`'${title}' 계획을 삭제할까요?`)) return;
+      try {
+        await api(`/plans/${row.dataset.id}`, { method: "DELETE" });
+        await afterPlanChange();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+  };
+
+  const form = document.getElementById("plan-form");
+  if (!form) return;
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(form);
+    const msg = document.getElementById("plan-msg");
+    const payload = {
+      day: cal.selected,
+      start_time: f.get("start"),
+      end_time: f.get("end"),
+      title: f.get("title"),
+      note: f.get("note"),
+    };
+    const btn = form.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      await api(cal.editingId ? `/plans/${cal.editingId}` : "/plans", {
+        method: cal.editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      cal.editingId = null;
+      await afterPlanChange();
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = "message error";
+      btn.disabled = false;
+    }
+  };
+}
+
+async function afterPlanChange() {
+  await loadPlans();
+  drawCalendar(); // 달력의 '계획 있음' 점도 같이 갱신
+}
+
+// ── 홈 화면: 오늘의 수업 계획 (학생·강사) ─────────────────────
+async function initHomePlan() {
+  const box = document.getElementById("home-plan");
+  if (!box) return;
+  if (!currentUser.course) {
+    box.innerHTML = "";
+    return;
+  }
+  const t = new Date();
+  const today = ymd(t.getFullYear(), t.getMonth(), t.getDate());
+  try {
+    const plans = await api(`/plans/${encodeURIComponent(currentUser.course)}?start=${today}&end=${today}`);
+    box.innerHTML = `
+      <section class="plan-panel">
+        <h3>오늘의 수업 계획 <small class="muted">${currentUser.course}</small></h3>
+        ${
+          plans.length
+            ? plans
+                .map(
+                  (p) => `<div class="plan-row"><div class="time">${hhmm(p.start_time)}<span>~ ${hhmm(p.end_time)}</span></div>
+                  <div class="what"><strong>${escapeHtml(p.title)}</strong>${p.note ? `<p>${escapeHtml(p.note)}</p>` : ""}</div></div>`,
+                )
+                .join("")
+            : '<p class="muted">오늘 등록된 수업 계획이 없습니다.</p>'
+        }
+      </section>`;
+  } catch {
+    box.innerHTML = "";
+  }
 }
 
 function bindScheduleForms() {

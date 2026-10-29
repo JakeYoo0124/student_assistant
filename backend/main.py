@@ -13,8 +13,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from security import hash_password, verify_password, create_access_token
-from auth import get_current_user, require_manager
+from auth import get_current_user, require_manager, check_course, can_view_course
 from excuse_api import router as excuse_router
+from plan_api import router as plan_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,6 +27,7 @@ app = FastAPI(lifespan=lifespan)
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.include_router(excuse_router)
+app.include_router(plan_router)
 
 @app.get("/")
 def home():
@@ -93,6 +95,44 @@ def create_manager(
     return manager
 
 
+@app.post("/instructors", response_model=UserRead)
+def create_instructor(data: UserCreate, session: Session = Depends(get_session), _: User = Depends(require_manager)):
+    if data.course not in COURSES:
+        raise HTTPException(status_code=400, detail="담당 과정을 선택해 주세요")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="강사 비밀번호는 8자 이상이어야 합니다")
+    if session.exec(select(User).where(User.email == data.email)).first():
+        raise HTTPException(status_code=400, detail="이미 가입된 이메일입니다")
+    # 과정당 강사는 1명이다
+    current = session.exec(select(User).where(User.role == "instructor", User.course == data.course)).first()
+    if current:
+        raise HTTPException(status_code=400, detail=f"{data.course}에는 이미 강사({current.name})가 있습니다. 바꾸려면 먼저 기존 강사를 삭제해 주세요")
+
+    instructor = User(
+        name=data.name.strip(),
+        email=data.email,
+        password_hash=hash_password(data.password),
+        role="instructor",
+        course=data.course,
+    )
+    session.add(instructor)
+    session.commit()
+    session.refresh(instructor)
+    return instructor
+
+@app.get("/instructors", response_model=list[UserRead])
+def list_instructors(session: Session = Depends(get_session), _: User = Depends(require_manager)):
+    return session.exec(select(User).where(User.role == "instructor").order_by(User.course)).all()
+
+@app.delete("/instructors/{user_id}")
+def delete_instructor(user_id: int, session: Session = Depends(get_session), _: User = Depends(require_manager)):
+    user = session.get(User, user_id)
+    if not user or user.role != "instructor":
+        raise HTTPException(status_code=404, detail="없는 강사입니다")
+    session.delete(user)  # 이 강사가 쓴 수업 계획은 남고, 작성자 이름만 '삭제된 사용자'로 보인다
+    session.commit()
+    return {"ok": True}
+
 def get_pending_student(user_id: int, session: Session) -> User:
     user = session.get(User, user_id)
     if not user or user.role != "student" or user.status != "pending":
@@ -122,15 +162,6 @@ def reject_signup(user_id: int, session: Session = Depends(get_session), _: User
 
 
 # ── 수업 일정 ───────────────────────────────────────────────
-def check_course(course: str):
-    if course not in COURSES:
-        raise HTTPException(status_code=404, detail="없는 과정입니다")
-
-def can_view_course(user: User, course: str):
-    # 담당자는 모든 과정, 학생은 자기 과정만
-    if user.role != "manager" and user.course != course:
-        raise HTTPException(status_code=403, detail="다른 과정의 일정은 볼 수 없습니다")
-
 @app.get("/schedule/{course}", response_model=ScheduleRead)
 def get_schedule(course: str, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     check_course(course)
