@@ -14,11 +14,13 @@ from excuse_rule import DOC_GUIDE, EXCUSE_RULE, CourseInfo, check_excuse, missin
 from models import (
     AbsenceBrief, CommentIn, CourseTerm, Evidence, ShortRequest, EvidenceRead, ExcuseCreate, ExcuseRead, ExcuseRequest, User,
 )
+from notify import notify, notify_instructors, notify_managers
 from schedule import get_term, holidays_of, is_class_day, next_class_day
 
 router = APIRouter(prefix="/excuse", tags=["excuse"])
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")  # backend/uploads
+# 기본은 backend/uploads. 테스트처럼 실제 서류와 섞이면 안 될 때는 환경변수 UPLOAD_DIR 로 다른 폴더를 쓴다
+UPLOAD_DIR = os.getenv("UPLOAD_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 ALLOWED_EXT = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 # 확장자만 믿지 않고 파일 앞부분(매직 바이트)이 실제 형식과 맞는지도 확인한다
 FILE_SIGNATURES = {
@@ -231,6 +233,7 @@ def create_request(data: ExcuseCreate, session: Session = Depends(get_session), 
         recognized_days=result["인정일수"], rule_note=result["사유"], memo=data.memo.strip(),
     )
     session.add(req)
+    notify_managers(session, "request", "새 출결 신청", f"{student.name} · {data.reason} ({data.start_date}~{data.end_date})", "#approvals")
     session.commit()
     session.refresh(req)
     return to_read(session, req)
@@ -303,6 +306,11 @@ def approve(request_id: int, session: Session = Depends(get_session), _: User = 
     req.status = "approved"
     req.decided_at = datetime.now(timezone.utc)
     session.add(req)
+    notify(session, req.student_id, "approved", "결석 신청이 승인되었습니다",
+           f"{req.reason} ({req.start_date}~{req.end_date}) · 증빙서류를 {req.evidence_due}까지 올려 주세요", "#status")
+    who = session.get(User, req.student_id)
+    notify_instructors(session, req.course, "absence", "결석 예정 학생이 있습니다",
+                       f"{who.name if who else '학생'} · {req.start_date}~{req.end_date}", "#absences")
     session.commit()
     return to_read(session, req)
 
@@ -318,6 +326,8 @@ def reject(request_id: int, data: CommentIn, session: Session = Depends(get_sess
     req.manager_comment = data.comment.strip()
     req.decided_at = datetime.now(timezone.utc)
     session.add(req)
+    notify(session, req.student_id, "rejected", "결석 신청이 반려되었습니다",
+           f"{req.reason} ({req.start_date}) · 사유: {req.manager_comment}", "#status")
     session.commit()
     return to_read(session, req)
 
@@ -370,6 +380,7 @@ async def upload_evidence(
     if not missing_docs(required_docs(req.reason, req.target), active):
         req.status = "submitted"
         session.add(req)
+        notify_managers(session, "evidence", "증빙서류 확인이 필요합니다", f"{student.name} · {req.reason} ({req.start_date})", "#approvals")
         session.commit()
     return to_read(session, req)
 
@@ -396,6 +407,7 @@ def confirm_evidence(request_id: int, session: Session = Depends(get_session), _
         raise HTTPException(status_code=400, detail="증빙 확인 대기 중인 신청이 아닙니다")
     req.status = "confirmed"
     session.add(req)
+    notify(session, req.student_id, "confirmed", "증빙서류가 확인되어 출석 인정되었습니다", f"{req.reason} ({req.start_date}~{req.end_date})", "#status")
     session.commit()
     return to_read(session, req)
 
@@ -413,5 +425,7 @@ def reject_evidence(request_id: int, data: CommentIn, session: Session = Depends
     req.status = "approved"  # 다시 올리도록 되돌린다 (기한은 그대로)
     req.manager_comment = data.comment.strip()
     session.add(req)
+    notify(session, req.student_id, "rejected", "증빙서류가 반려되었습니다",
+           f"{req.reason} ({req.start_date}) · 사유: {req.manager_comment}. 기한 {req.evidence_due}까지 다시 올려 주세요", "#status")
     session.commit()
     return to_read(session, req)

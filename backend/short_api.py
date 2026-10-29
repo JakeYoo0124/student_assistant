@@ -8,6 +8,7 @@ from auth import require_manager, require_student
 from database import get_session
 from excuse_api import ACTIVE as EXCUSE_ACTIVE
 from excuse_rule import CLASS_END
+from notify import notify, notify_instructors, notify_managers
 from models import CalendarMark, CommentIn, ExcuseRequest, ShortCreate, ShortRead, ShortRequest, User
 from schedule import get_term, holidays_of, is_class_day
 
@@ -26,6 +27,13 @@ def to_read(session: Session, r: ShortRequest) -> ShortRead:
         course=r.course, kind=r.kind, day=r.day, start_time=r.start_time, end_time=r.end_time,
         reason=r.reason, status=r.status, manager_comment=r.manager_comment, created_at=r.created_at,
     )
+
+
+def short_time_text(r: ShortRequest) -> str:
+    """알림 문구용: 조퇴는 '14:00 퇴실', 외출은 '10:00~11:30'."""
+    if r.kind == "외출" and r.end_time:
+        return f"{r.start_time:%H:%M}~{r.end_time:%H:%M}"
+    return f"{r.start_time:%H:%M} 퇴실"
 
 
 def span(kind: str, start: time, end: time | None) -> tuple[time, time]:
@@ -98,6 +106,7 @@ def create_short(data: ShortCreate, session: Session = Depends(get_session), stu
     r = ShortRequest(student_id=student.id, course=student.course, kind=data.kind, day=data.day,
                      start_time=start, end_time=end, reason=reason)
     session.add(r)
+    notify_managers(session, "request", f"새 {data.kind} 신청", f"{student.name} · {data.day} {short_time_text(r)}", "#approvals")
     session.commit()
     session.refresh(r)
     return to_read(session, r)
@@ -140,6 +149,10 @@ def approve_short(short_id: int, session: Session = Depends(get_session), _: Use
     r.status = "approved"
     r.decided_at = datetime.now(timezone.utc)
     session.add(r)
+    notify(session, r.student_id, "approved", f"{r.kind} 신청이 승인되었습니다", f"{r.day} {short_time_text(r)}", "#status")
+    who = session.get(User, r.student_id)
+    notify_instructors(session, r.course, "absence", f"{r.kind} 예정 학생이 있습니다",
+                       f"{who.name if who else '학생'} · {r.day} {short_time_text(r)}", "#absences")
     session.commit()
     return to_read(session, r)
 
@@ -155,6 +168,7 @@ def reject_short(short_id: int, data: CommentIn, session: Session = Depends(get_
     r.manager_comment = data.comment.strip()
     r.decided_at = datetime.now(timezone.utc)
     session.add(r)
+    notify(session, r.student_id, "rejected", f"{r.kind} 신청이 반려되었습니다", f"{r.day} · 사유: {r.manager_comment}", "#status")
     session.commit()
     return to_read(session, r)
 

@@ -226,6 +226,29 @@ class ShortRead(SQLModel):
     created_at: datetime
 
 
+class Notification(SQLModel, table=True):
+    """앱 안 알림. 받는 사람(user_id)마다 한 줄씩 저장한다."""
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    kind: str  # 알림 종류 (예: request, approved, due)
+    title: str
+    body: str = ""
+    link: str = ""  # 누르면 이동할 화면 (예: #approvals)
+    dedupe_key: str | None = Field(default=None, index=True)  # 같은 알림을 두 번 만들지 않기 위한 열쇠
+    read: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class NotificationRead(SQLModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    link: str
+    read: bool
+    created_at: datetime
+
+
 class CalendarMark(SQLModel):
     """학생 본인의 달력에 칠하는 한 칸. 승인됐거나 신청 중인 결석·휴가·조퇴·외출."""
     day: date

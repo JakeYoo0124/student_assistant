@@ -121,13 +121,8 @@ const NAV = {
 const PAGES = {
   home: (user) => `
     <h2>${escapeHtml(user.name)}님, 안녕하세요</h2>
-    <p class="desc">${user.role === "instructor" ? "오늘의 수업 계획을 확인하세요." : "오늘의 출결 현황을 확인하세요."}</p>
-    ${user.role === "instructor" ? "" : `
-    <div class="grid">
-      <div class="tile"><div class="label">출석률</div><div class="value soon">준비 중</div></div>
-      <div class="tile"><div class="label">결석·조퇴</div><div class="value soon">준비 중</div></div>
-      <div class="tile"><div class="label">남은 휴가</div><div class="value soon">준비 중</div></div>
-    </div>`}
+    <p class="desc">${{ manager: "처리할 일과 오늘의 현황입니다.", instructor: "오늘 우리 과정의 현황과 수업 계획입니다." }[user.role] || "내 출결 현황과 오늘의 수업 계획입니다."}</p>
+    <div id="dash-root"></div>
     <div id="home-plan"></div>`,
   request: () => `
     <h2>출결 신청</h2>
@@ -216,7 +211,7 @@ function renderPage() {
     a.classList.toggle("active", a.dataset.page === key);
   });
   if (key === "managers") { bindManagerForm(); initInstructorSection(); }
-  if (key === "home") initHomePlan();
+  if (key === "home") { initDashboard(); initHomePlan(); }
   if (key === "absences") initAbsencesPage();
   if (key === "signups") loadSignups();
   if (key === "calendar") initCalendarPage();
@@ -299,9 +294,11 @@ async function enterApp() {
   appView.hidden = false;
   renderNav();
   renderPage();
+  startNotifications();
 }
 
 function leaveApp() {
+  stopNotifications();
   localStorage.removeItem(TOKEN_KEY);
   currentUser = null;
   appView.hidden = true;

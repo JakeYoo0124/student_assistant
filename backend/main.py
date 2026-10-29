@@ -17,6 +17,9 @@ from auth import get_current_user, require_manager, check_course, can_view_cours
 from excuse_api import router as excuse_router
 from plan_api import router as plan_router
 from short_api import router as short_router
+from notify_api import router as notify_router
+from dashboard_api import router as dashboard_router
+from notify import notify_managers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +33,8 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.include_router(excuse_router)
 app.include_router(plan_router)
 app.include_router(short_router)
+app.include_router(notify_router)
+app.include_router(dashboard_router)
 
 @app.get("/")
 def home():
@@ -56,6 +61,7 @@ def signup(data: UserCreate, session: Session = Depends(get_session)):
         course=data.course,
     )
     session.add(user)
+    notify_managers(session, "signup", "새 가입 신청", f"{user.name} ({user.course}) 학생이 가입을 신청했습니다", "#signups")
     session.commit()
     session.refresh(user)
     return user
