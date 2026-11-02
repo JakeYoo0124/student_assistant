@@ -19,6 +19,7 @@ from plan_api import router as plan_router
 from short_api import router as short_router
 from notify_api import router as notify_router
 from dashboard_api import router as dashboard_router
+from agent_api import router as agent_router
 from notify import notify_managers
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ app.include_router(plan_router)
 app.include_router(short_router)
 app.include_router(notify_router)
 app.include_router(dashboard_router)
+app.include_router(agent_router)
 
 @app.get("/")
 def home():
