@@ -107,14 +107,14 @@ const ROLE_LABEL = { student: "학생", instructor: "강사", manager: "담당�
 const NAV = {
   student: [
     ["home", "홈"], ["request", "출결 신청"], ["status", "출결 현황"],
-    ["calendar", "수업 일정"], ["notice", "공지사항"], ["docs", "문서 보관함"], ["chat", "AI 도우미"],
+    ["calendar", "수업 일정"], ["notice", "공지사항"], ["docs", "문서 보관함"],
   ],
   instructor: [
-    ["home", "홈"], ["calendar", "수업 일정·계획"], ["absences", "결석 예정"], ["chat", "AI 도우미"],
+    ["home", "홈"], ["calendar", "수업 일정·계획"], ["absences", "결석 예정"],
   ],
   manager: [
     ["home", "홈"], ["signups", "가입 승인"], ["approvals", "출결 승인"], ["status", "전체 출결 현황"],
-    ["calendar", "수업 일정 관리"], ["notice", "공지 작성"], ["managers", "담당자 관리"], ["chat", "AI 도우미"],
+    ["calendar", "수업 일정 관리"], ["notice", "공지 작성"], ["managers", "담당자 관리"],
   ],
 };
 
@@ -152,7 +152,6 @@ const PAGES = {
     ? placeholder("공지 작성", "학생들에게 보낼 공지를 작성하는 화면입니다.")
     : placeholder("공지사항", "담당자가 올린 공지를 보는 화면입니다."),
   docs: () => placeholder("문서 보관함", "제출한 증빙서류를 모아 보는 화면입니다."),
-  chat: () => placeholder("AI 도우미", "출결 규정을 물어보는 챗봇입니다."),
   signups: () => `
     <h2>가입 승인</h2>
     <p class="desc">가입을 신청한 학생입니다. 승인해야 로그인할 수 있습니다.</p>
@@ -295,10 +294,12 @@ async function enterApp() {
   renderNav();
   renderPage();
   startNotifications();
+  startChatbot();
 }
 
 function leaveApp() {
   stopNotifications();
+  stopChatbot();
   localStorage.removeItem(TOKEN_KEY);
   currentUser = null;
   appView.hidden = true;
